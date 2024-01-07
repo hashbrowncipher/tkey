@@ -3,6 +3,7 @@
 
 #include <monocypher/monocypher-ed25519.h>
 #include <tkey/qemu_debug.h>
+#include <tkey/blake2s.h>
 #include <tkey/tk1_mem.h>
 
 #include "app_proto.h"
@@ -48,6 +49,14 @@ touched:
 	*touch = 0;
 }
 
+void set_seed(uint8_t * purpose, int purpose_len, const uint8_t * cdi, uint8_t * secret_key, uint8_t * pubkey) {
+	blake2s_ctx blake2s_ctx;
+	uint32_t derived_seed[8];
+
+	blake2s(derived_seed, purpose_len, cdi, 32, purpose, 32, &blake2s_ctx);
+	crypto_ed25519_key_pair(secret_key, pubkey, (uint8_t *)derived_seed);
+}
+
 int main(void)
 {
 #ifdef QEMU_DEBUG
@@ -81,7 +90,7 @@ int main(void)
 
 	// Generate a public key from CDI (only word aligned access to CDI)
 	wordcpy(local_cdi, (void *)cdi, 8);
-	crypto_ed25519_key_pair(secret_key, pubkey, (uint8_t *)local_cdi);
+	set_seed(NULL, 0, (uint8_t *) local_cdi, secret_key, pubkey);
 
 	for (;;) {
 		*led = LED_BLUE;
@@ -123,6 +132,13 @@ int main(void)
 			memcpy(rsp, pubkey, 32);
 			appreply(hdr, APP_RSP_GET_PUBKEY, rsp);
 			break;
+		case APP_CMD_SET_SEED:
+			qemu_puts("APP_CMD_SET_SEED\n");
+			set_seed(cmd + 1, 32, (uint8_t *) local_cdi, secret_key, pubkey);
+			rsp[0] = STATUS_OK;
+			appreply(hdr, APP_RSP_SET_SEED, rsp);
+			break;
+
 
 		case APP_CMD_SET_SIZE:
 			qemu_puts("APP_CMD_SET_SIZE\n");
@@ -151,7 +167,6 @@ int main(void)
 			rsp[0] = STATUS_OK;
 			appreply(hdr, APP_RSP_SET_SIZE, rsp);
 			break;
-
 		case APP_CMD_SIGN_DATA:
 			qemu_puts("APP_CMD_SIGN_DATA\n");
 			const uint32_t cmdBytelen = 128;

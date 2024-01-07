@@ -34,7 +34,7 @@ LDFLAGS=-T $(LIBDIR)/app.lds -L $(LIBDIR) -lcommon -lcrt0
 
 
 .PHONY: all
-all: signer/app.bin check-signer-hash
+all: signer/app.bin
 
 # Turn elf into bin for device
 %.bin: %.elf

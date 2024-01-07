@@ -4,6 +4,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"log"
@@ -35,7 +36,7 @@ func main() {
 		version = readBuildInfo()
 	}
 
-	var agentPath, devPath, fileUSS, pinentry string
+	var agentPath, devPath, fileUSS, pinentry, purpose string
 	var speed int
 	var enterUSS, showPubkeyOnly, listPortsOnly, versionOnly, helpOnly bool
 	pflag.CommandLine.SetOutput(os.Stderr)
@@ -49,6 +50,9 @@ func main() {
 	})
 	pflag.StringVarP(&agentPath, "agent-path", "a", "",
 		fmt.Sprintf("Start the agent, setting the `PATH` to the UNIX-domain socket that it should listen on. On Windows, a Named Pipe at '%s\\PATH' will be used.", windowsPipePrefix))
+	pflag.StringVarP(&purpose, "purpose", "s", "",
+		"A string describing the purpose for this ssh agent")
+
 	pflag.BoolVarP(&showPubkeyOnly, "show-pubkey", "p", false,
 		"Don't start the agent, only output the ssh-ed25519 public key.")
 	pflag.BoolVarP(&listPortsOnly, "list-ports", "L", false,
@@ -149,7 +153,11 @@ will flash green when the stick must be touched to complete a signature.`, progn
 		prevExitFunc(code)
 	}
 
-	signer := NewSigner(devPath, speed, enterUSS, fileUSS, pinentry, exit)
+	h := sha256.New()
+	h.Write([]byte(purpose))
+	seed := h.Sum(nil)
+
+	signer := NewSigner(devPath, speed, enterUSS, fileUSS, pinentry, seed, exit)
 
 	if showPubkeyOnly {
 		if !signer.connect() {

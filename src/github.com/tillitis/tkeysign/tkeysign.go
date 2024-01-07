@@ -37,6 +37,8 @@ var (
 	rspGetNameVersion = appCmd{0x0a, "rspGetNameVersion", tkeyclient.CmdLen32}
 	cmdSignPhData     = appCmd{0x0b, "cmdSignPhData", tkeyclient.CmdLen128}
 	rspSignPhData     = appCmd{0x0c, "rspSigPhnData", tkeyclient.CmdLen4}
+	cmdSetSeed        = appCmd{0x0d, "cmdSetSeed", tkeyclient.CmdLen128}
+	rspSetSeed        = appCmd{0x0e, "rspSetSeed", tkeyclient.CmdLen1}
 )
 
 const MaxSignSize = 4096
@@ -304,4 +306,32 @@ func (s Signer) SignPh(data [64]byte) ([]byte, error) {
 	}
 
 	return signature, nil
+}
+
+func (s Signer) SetSeed(data [32]byte) error {
+	id := 2
+	tx, err := tkeyclient.NewFrameBuf(cmdSetSeed, id)
+	if err != nil {
+		return fmt.Errorf("NewFrameBuf: %w", err)
+	}
+
+	copy(tx[2:], data[:])
+
+	tkeyclient.Dump("SetSeed tx", tx)
+	if err = s.tk.Write(tx); err != nil {
+		return fmt.Errorf("Write: %w", err)
+	}
+
+	// Wait for reply
+	rx, _, err := s.tk.ReadFrame(rspSetSeed, id)
+	if err != nil {
+		return fmt.Errorf("ReadFrame: %w", err)
+	}
+	tkeyclient.Dump("SetSeed rx", rx)
+
+	if rx[1] != tkeyclient.StatusOK {
+		return fmt.Errorf("SetSeed NOK")
+	}
+
+	return nil
 }

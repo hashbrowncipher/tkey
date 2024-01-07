@@ -48,16 +48,15 @@ type Signer struct {
 	speed           int
 	enterUSS        bool
 	fileUSS         string
+	purpose         [32]byte
 	pinentry        string
 	mu              sync.Mutex
 	connected       bool
 	disconnectTimer *time.Timer
 }
 
-func NewSigner(devPathArg string, speedArg int, enterUSS bool, fileUSS string, pinentry string, exitFunc func(int)) *Signer {
+func NewSigner(devPathArg string, speedArg int, enterUSS bool, fileUSS string, pinentry string, purpose []byte, exitFunc func(int)) *Signer {
 	var signer Signer
-
-	tkeyclient.SilenceLogging()
 
 	tk := tkeyclient.New()
 
@@ -69,8 +68,11 @@ func NewSigner(devPathArg string, speedArg int, enterUSS bool, fileUSS string, p
 		speed:    speedArg,
 		enterUSS: enterUSS,
 		fileUSS:  fileUSS,
+		purpose:  [32]byte{},
 		pinentry: pinentry,
 	}
+
+	copy(signer.purpose[:], purpose)
 
 	// Do nothing on HUP, in case old udev rule is still in effect
 	handleSignals(func() {}, syscall.SIGHUP)
@@ -211,6 +213,7 @@ func (s *Signer) printAuthorizedKey() {
 	}
 	defer s.disconnect()
 
+	s.tkSigner.SetSeed(s.purpose)
 	pub, err := s.tkSigner.GetPubkey()
 	if err != nil {
 		le.Printf("GetPubkey failed: %s\n", err)
@@ -272,6 +275,7 @@ func (s *Signer) Public() crypto.PublicKey {
 	}
 	defer s.disconnect()
 
+	s.tkSigner.SetSeed(s.purpose)
 	pub, err := s.tkSigner.GetPubkey()
 	if err != nil {
 		le.Printf("GetPubkey failed: %s\n", err)
@@ -285,6 +289,8 @@ func (s *Signer) Sign(_ io.Reader, message []byte, opts crypto.SignerOpts) ([]by
 		return nil, fmt.Errorf("Connect failed")
 	}
 	defer s.disconnect()
+
+	s.tkSigner.SetSeed(s.purpose)
 
 	// The Ed25519 signature must be made over unhashed message. See:
 	// https://cs.opensource.google/go/go/+/refs/tags/go1.18.4:src/crypto/ed25519/ed25519.go;l=80
